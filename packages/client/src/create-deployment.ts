@@ -1,12 +1,12 @@
-import { readdir as readRootFolder, lstatSync } from 'fs-extra';
+import { lstatSync } from 'fs-extra';
 
 import { relative, isAbsolute } from 'path';
-import hashes, { mapToObject } from './utils/hashes';
+import { hashes, mapToObject, resolveNftJsonFiles } from './utils/hashes';
 import { upload } from './upload';
 import { buildFileTree, createDebug, parseVercelConfig } from './utils';
 import { DeploymentError } from './errors';
 import {
-  NowConfig,
+  VercelConfig,
   VercelClientOptions,
   DeploymentOptions,
   DeploymentEventType,
@@ -16,7 +16,7 @@ export default function buildCreateDeployment() {
   return async function* createDeployment(
     clientOptions: VercelClientOptions,
     deploymentOptions: DeploymentOptions = {},
-    nowConfig: NowConfig = {}
+    nowConfig: VercelConfig = {}
   ): AsyncIterableIterator<{ type: DeploymentEventType; payload: any }> {
     const { path } = clientOptions;
 
@@ -50,8 +50,6 @@ export default function buildCreateDeployment() {
     clientOptions.isDirectory =
       !Array.isArray(path) && lstatSync(path).isDirectory();
 
-    let rootFiles: string[];
-
     if (Array.isArray(path)) {
       for (const filePath of path) {
         if (!isAbsolute(filePath)) {
@@ -69,22 +67,14 @@ export default function buildCreateDeployment() {
     }
 
     if (clientOptions.isDirectory && !Array.isArray(path)) {
-      debug(`Provided 'path' is a directory. Reading subpaths... `);
-      rootFiles = await readRootFolder(path);
-      debug(`Read ${rootFiles.length} subpaths`);
+      debug(`Provided 'path' is a directory.`);
     } else if (Array.isArray(path)) {
       debug(`Provided 'path' is an array of file paths`);
-      rootFiles = path;
     } else {
       debug(`Provided 'path' is a single file`);
-      rootFiles = [path];
     }
 
-    let { fileList } = await buildFileTree(
-      path,
-      clientOptions.isDirectory,
-      debug
-    );
+    let { fileList } = await buildFileTree(path, clientOptions, debug);
 
     let configPath: string | undefined;
     if (!nowConfig) {
@@ -119,7 +109,11 @@ export default function buildCreateDeployment() {
       };
     }
 
-    const files = await hashes(fileList);
+    const hashedFileMap = await hashes(fileList);
+    const nftFileList = clientOptions.prebuilt
+      ? await resolveNftJsonFiles(hashedFileMap)
+      : [];
+    const files = await hashes(nftFileList, hashedFileMap);
 
     debug(`Yielding a 'hashes-calculated' event with ${files.size} hashes`);
     yield { type: 'hashes-calculated', payload: mapToObject(files) };

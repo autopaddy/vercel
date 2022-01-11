@@ -2,7 +2,6 @@ import { join, basename } from 'path';
 import chalk from 'chalk';
 import { remove } from 'fs-extra';
 import { ProjectLinkResult, ProjectSettings } from '../../types';
-import { VercelConfig } from '../dev/types';
 import {
   getLinkedProject,
   linkFolderToProject,
@@ -23,22 +22,28 @@ import editProjectSettings from '../input/edit-project-settings';
 import stamp from '../output/stamp';
 import { EmojiLabel } from '../emoji';
 import createDeploy from '../deploy/create-deploy';
-import Now from '../index';
+import Now, { CreateOptions } from '../index';
+
+export interface SetupAndLinkOptions {
+  forceDelete?: boolean;
+  autoConfirm?: boolean;
+  successEmoji: EmojiLabel;
+  setupMsg: string;
+  projectName?: string;
+}
 
 export default async function setupAndLink(
   client: Client,
   path: string,
-  forceDelete: boolean,
-  autoConfirm: boolean,
-  successEmoji: EmojiLabel,
-  setupMsg: string
+  {
+    forceDelete = false,
+    autoConfirm = false,
+    successEmoji,
+    setupMsg,
+    projectName,
+  }: SetupAndLinkOptions
 ): Promise<ProjectLinkResult> {
-  const {
-    authConfig: { token },
-    apiUrl,
-    output,
-    config,
-  } = client;
+  const { localConfig, output, config } = client;
   const debug = output.isDebugEnabled();
 
   const isFile = !isDirectory(path);
@@ -90,10 +95,9 @@ export default async function setupAndLink(
     throw err;
   }
 
-  const detectedProjectName = basename(path);
+  const detectedProjectName = projectName || basename(path);
 
   const projectOrNewProjectName = await inputProject(
-    output,
     client,
     org,
     detectedProjectName,
@@ -134,35 +138,26 @@ export default async function setupAndLink(
     return { status: 'error', exitCode: 1 };
   }
 
-  let localConfig: VercelConfig = {};
-  if (client.localConfig && !(client.localConfig instanceof Error)) {
-    localConfig = client.localConfig;
-  }
-
   config.currentTeam = org.type === 'team' ? org.id : undefined;
-  const isZeroConfig = !localConfig.builds || localConfig.builds.length === 0;
+  const isZeroConfig =
+    !localConfig || !localConfig.builds || localConfig.builds.length === 0;
 
   try {
     let settings: ProjectSettings = {};
 
     if (isZeroConfig) {
       const now = new Now({
-        apiUrl,
-        token,
-        debug,
-        output,
+        client,
         currentTeam: config.currentTeam,
       });
-      const createArgs: any = {
+      const createArgs: CreateOptions = {
         name: newProjectName,
         env: {},
         build: { env: {} },
         forceNew: undefined,
         withCache: undefined,
         quiet,
-        wantsPublic: localConfig.public,
-        isFile,
-        type: null,
+        wantsPublic: localConfig?.public || false,
         nowConfig: localConfig,
         regions: undefined,
         meta: {},
@@ -171,7 +166,7 @@ export default async function setupAndLink(
         skipAutoDetectionConfirmation: false,
       };
 
-      if (!localConfig.builds || localConfig.builds.length === 0) {
+      if (isZeroConfig) {
         // Only add projectSettings for zero config deployments
         createArgs.projectSettings = { sourceFilesOutsideRootDirectory };
       }
@@ -183,7 +178,7 @@ export default async function setupAndLink(
         [sourcePath],
         createArgs,
         org,
-        !isFile,
+        true,
         path
       );
 

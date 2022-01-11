@@ -19,6 +19,8 @@ interface LambdaOptions {
   memory?: number;
   maxDuration?: number;
   environment: Environment;
+  allowQuery?: string[];
+  regions?: string[];
 }
 
 interface CreateLambdaOptions {
@@ -28,12 +30,16 @@ interface CreateLambdaOptions {
   memory?: number;
   maxDuration?: number;
   environment?: Environment;
+  allowQuery?: string[];
+  regions?: string[];
 }
 
 interface GetLambdaOptionsFromFunctionOptions {
   sourceFile: string;
-  config?: Config;
+  config?: Pick<Config, 'functions'>;
 }
+
+export const FILES_SYMBOL = Symbol('files');
 
 export class Lambda {
   public type: 'Lambda';
@@ -43,6 +49,8 @@ export class Lambda {
   public memory?: number;
   public maxDuration?: number;
   public environment: Environment;
+  public allowQuery?: string[];
+  public regions?: string[];
 
   constructor({
     zipBuffer,
@@ -51,6 +59,8 @@ export class Lambda {
     maxDuration,
     memory,
     environment,
+    allowQuery,
+    regions,
   }: LambdaOptions) {
     this.type = 'Lambda';
     this.zipBuffer = zipBuffer;
@@ -59,6 +69,8 @@ export class Lambda {
     this.memory = memory;
     this.maxDuration = maxDuration;
     this.environment = environment;
+    this.allowQuery = allowQuery;
+    this.regions = regions;
   }
 }
 
@@ -72,6 +84,8 @@ export async function createLambda({
   memory,
   maxDuration,
   environment = {},
+  allowQuery,
+  regions,
 }: CreateLambdaOptions): Promise<Lambda> {
   assert(typeof files === 'object', '"files" must be an object');
   assert(typeof handler === 'string', '"handler" is not a string');
@@ -86,18 +100,38 @@ export async function createLambda({
     assert(typeof maxDuration === 'number', '"maxDuration" is not a number');
   }
 
+  if (allowQuery !== undefined) {
+    assert(Array.isArray(allowQuery), '"allowQuery" is not an Array');
+    assert(
+      allowQuery.every(q => typeof q === 'string'),
+      '"allowQuery" is not a string Array'
+    );
+  }
+
+  if (regions !== undefined) {
+    assert(Array.isArray(regions), '"regions" is not an Array');
+    assert(
+      regions.every(r => typeof r === 'string'),
+      '"regions" is not a string Array'
+    );
+  }
+
   await sema.acquire();
 
   try {
     const zipBuffer = await createZip(files);
-    return new Lambda({
+    const lambda = new Lambda({
       zipBuffer,
       handler,
       runtime,
       memory,
       maxDuration,
       environment,
+      regions,
     });
+    // @ts-ignore This symbol is a private API
+    lambda[FILES_SYMBOL] = files;
+    return lambda;
   } finally {
     sema.release();
   }
@@ -131,9 +165,7 @@ export async function createZip(files: Files): Promise<Buffer> {
     }
 
     zipFile.end();
-    streamToBuffer(zipFile.outputStream)
-      .then(resolve)
-      .catch(reject);
+    streamToBuffer(zipFile.outputStream).then(resolve).catch(reject);
   });
 
   return zipBuffer;

@@ -3,7 +3,7 @@ import ms from 'ms';
 import plural from 'pluralize';
 import { error } from '../../util/error';
 import NowCreditCards from '../../util/credit-cards';
-import indent from '../../util/indent';
+import indent from '../../util/output/indent';
 import listInput from '../../util/input/list';
 import success from '../../util/output/success';
 import promptBool from '../../util/input/prompt-bool';
@@ -51,8 +51,6 @@ const help = () => {
 };
 
 let argv;
-let debug;
-let apiUrl;
 let subcommand;
 
 export default async client => {
@@ -65,8 +63,6 @@ export default async client => {
 
   argv._ = argv._.slice(1);
 
-  debug = argv['--debug'];
-  apiUrl = client.apiUrl;
   subcommand = argv._[0];
 
   if (argv['--help'] || !subcommand) {
@@ -76,17 +72,13 @@ export default async client => {
 
   const {
     output,
-    authConfig: { token },
     config: { currentTeam },
   } = client;
 
   const start = new Date();
   const creditCards = new NowCreditCards({
-    apiUrl,
-    token,
-    debug,
+    client,
     currentTeam,
-    output,
   });
 
   let contextName = null;

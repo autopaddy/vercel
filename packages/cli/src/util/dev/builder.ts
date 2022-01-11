@@ -109,7 +109,8 @@ export async function executeBuild(
     builderWithPkg: { runInProcess, requirePath, builder, package: pkg },
   } = match;
   const { entrypoint } = match;
-  const { debug, envConfigs, cwd: workPath, devCacheDir } = devServer;
+  const { envConfigs, cwd: workPath, devCacheDir } = devServer;
+  const debug = devServer.output.isDebugEnabled();
 
   const startTime = Date.now();
   const showBuildTimestamp =
@@ -216,13 +217,13 @@ export async function executeBuild(
 
     if (output.maxDuration) {
       throw new Error(
-        'The result of "builder.build()" must not contain `memory`'
+        'The result of "builder.build()" must not contain `maxDuration`'
       );
     }
 
     if (output.memory) {
       throw new Error(
-        'The result of "builder.build()" must not contain `maxDuration`'
+        'The result of "builder.build()" must not contain `memory`'
       );
     }
 

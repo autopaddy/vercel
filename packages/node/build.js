@@ -33,14 +33,6 @@ async function main() {
   await fs.remove(symlinkTarget);
   await fs.symlink('symlinked-asset', symlinkTarget);
 
-  // Use types.d.ts as the main types export
-  await Promise.all(
-    (await fs.readdir(outDir))
-      .filter(p => p.endsWith('.d.ts') && p !== 'types.d.ts')
-      .map(p => fs.remove(join(outDir, p)))
-  );
-  await fs.rename(join(outDir, 'types.d.ts'), join(outDir, 'index.d.ts'));
-
   // Bundle helpers.ts with ncc
   await fs.remove(join(outDir, 'helpers.js'));
   const helpersDir = join(outDir, 'helpers');
@@ -54,7 +46,7 @@ async function main() {
       '-e',
       '@vercel/build-utils',
       '-e',
-      '@now/build-utils',
+      'typescript',
       '-o',
       helpersDir,
     ],
@@ -75,7 +67,7 @@ async function main() {
       '-e',
       '@vercel/build-utils',
       '-e',
-      '@now/build-utils',
+      'typescript',
       '-o',
       sourceMapSupportDir,
     ],
@@ -97,8 +89,6 @@ async function main() {
       '@vercel/node-bridge',
       '-e',
       '@vercel/build-utils',
-      '-e',
-      '@now/build-utils',
       '-e',
       'typescript',
       '-o',
