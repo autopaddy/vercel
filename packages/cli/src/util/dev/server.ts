@@ -572,7 +572,7 @@ export default class DevServer {
       const { projectSettings, cleanUrls, trailingSlash } = vercelConfig;
 
       const opts = { output: this.output };
-      if (!this.cachedFiles) {
+      if (!this.cachedFiles.length) {
         this.cachedFiles = (await getFiles(this.cwd, opts)).map(f =>
           relative(this.cwd, f)
         );
@@ -607,7 +607,7 @@ export default class DevServer {
       }
 
       const { reason, metadata } = await detectFileSystemAPI({
-        files,
+        files: this.cachedFiles,
         builders: builders || [],
         projectSettings: projectSettings || this.projectSettings || {},
         vercelConfig,
