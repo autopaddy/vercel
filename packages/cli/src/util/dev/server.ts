@@ -155,6 +155,8 @@ export default class DevServer {
   private systemEnvValues: string[];
   private projectEnvs: ProjectEnvVariable[];
 
+  private cachedFiles: string[];
+
   constructor(cwd: string, options: DevServerOptions) {
     this.cwd = cwd;
     this.debug = options.debug;
@@ -196,6 +198,8 @@ export default class DevServer {
     this.podId = Math.random().toString(32).slice(-5);
 
     this.devServerPids = new Set();
+
+    this.cachedFiles = [];
   }
 
   async exit(code = 1) {
@@ -568,9 +572,11 @@ export default class DevServer {
       const { projectSettings, cleanUrls, trailingSlash } = vercelConfig;
 
       const opts = { output: this.output };
-      const files = (await getFiles(this.cwd, opts)).map(f =>
-        relative(this.cwd, f)
-      );
+      if (!this.cachedFiles) {
+        this.cachedFiles = (await getFiles(this.cwd, opts)).map(f =>
+          relative(this.cwd, f)
+        );
+      }
 
       let {
         builders,
@@ -580,7 +586,7 @@ export default class DevServer {
         redirectRoutes,
         rewriteRoutes,
         errorRoutes,
-      } = await detectBuilders(files, pkg, {
+      } = await detectBuilders(this.cachedFiles, pkg, {
         tag: getDistTag(cliPkg.version) === 'canary' ? 'canary' : 'latest',
         functions: vercelConfig.functions,
         projectSettings: projectSettings || this.projectSettings,
